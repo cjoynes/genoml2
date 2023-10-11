@@ -24,7 +24,7 @@ from pandas_plink import read_plink1_bin
 import genoml.dependencies
 
 class munging:
-    def __init__(self, pheno_path, run_prefix="GenoML_data", impute_type="median", skip_prune="no", p_gwas=0.001, addit_path=None, gwas_path=None, geno_path=None, refColsHarmonize=None, r2_cutoff="0.5"):
+    def __init__(self, pheno_path, run_prefix="GenoML_data", impute_type="median", skip_prune="no", p_gwas=0.001, addit_path=None, gwas_path=None, geno_path=None, refColsHarmonize=None, r2_cutoff="0.5", data_type="d"):
         self.pheno_path = pheno_path
         self.run_prefix = run_prefix
         
@@ -41,6 +41,8 @@ class munging:
         
         self.refColsHarmonize = refColsHarmonize
 
+        self.data_type = data_type
+
         # Reading in the phenotype file 
         self.pheno_df = pd.read_csv(pheno_path, engine='c')
         
@@ -56,7 +58,10 @@ class munging:
 
         # Typecase to read in the ID column as a string and the PHENO as an integer
         self.pheno_df['ID'] = self.pheno_df['ID'].astype(str)
-        self.pheno_df['PHENO'] = self.pheno_df['PHENO'].astype(int)
+        if self.data_type == 'c': 
+            self.pheno_df['PHENO'] = self.pheno_df['PHENO'].astype(float) 
+        else: 
+            self.pheno_df['PHENO'] = self.pheno_df['PHENO'].astype(int)
 
         if (addit_path==None):
             print("No additional features as predictors? No problem, we'll stick to genotypes.")
@@ -208,9 +213,12 @@ class munging:
             if impute_type not in impute_list:
                 return "The 2 types of imputation currently supported are 'mean' and 'median'"
             elif impute_type.lower() == "mean":
-                raw_df = raw_df.fillna(raw_df.mean())
+                numeric_means = raw_df.select_dtypes(include=[np.number]).mean()
+                raw_df = raw_df.fillna(numeric_means)
             elif impute_type.lower() == "median":
-                raw_df = raw_df.fillna(raw_df.median())
+                numeric_medians = raw_df.select_dtypes(include=[np.number]).median()
+                raw_df = raw_df.fillna(numeric_medians)
+
             print("")
             print(
                 f"You have just imputed your genotype features, covering up NAs with the column {impute_type} so that analyses don't crash due to missing data.")
@@ -226,9 +234,12 @@ class munging:
             if impute_type not in impute_list:
                 return "The 2 types of imputation currently supported are 'mean' and 'median'"
             elif impute_type.lower() == "mean":
-                addit_df = addit_df.fillna(addit_df.mean())
+                numeric_means = addit_df.select_dtypes(include=[np.number]).mean()
+                addit_df = addit_df.fillna(numeric_means)
             elif impute_type.lower() == "median":
-                addit_df = addit_df.fillna(addit_df.median())
+                numeric_medians = addit_df.select_dtypes(include=[np.number]).median()
+                addit_df = addit_df.fillna(numeric_medians)
+
             print("")
             print(
                 f"You have just imputed your non-genotype features, covering up NAs with the column {impute_type} so that analyses don't crash due to missing data.")
@@ -249,7 +260,7 @@ class munging:
             # Remove any columns with a standard deviation of zero
             print(f"Removing any columns that have a standard deviation of 0 prior to Z-scaling...")
             
-            if any(addit_df.std() == 0.0):
+            if any(addit_df[cols].std() == 0.0):
                 print("")
                 print(f"Looks like there's at least one column with a standard deviation of 0. Let's remove that for you...")
                 print("") 
